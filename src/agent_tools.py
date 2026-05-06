@@ -110,14 +110,14 @@ class ToolsAgent:
             raw = self._llm.invoke(
                 COMBINED_PROMPT.format(question=question, history=history)
             ).strip()
-            if "```" in raw:
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
-            return json.loads(raw.strip())
+            # Extraction JSON robuste : cherche le premier { ... } dans la réponse
+            start = raw.find('{')
+            end = raw.rfind('}')
+            if start != -1 and end != -1:
+                return json.loads(raw[start:end+1])
         except Exception as e:
             print(f"[Tools] ⚠ LLM combiné échoué ({e}), fallback mots-clés")
-            return None
+        return None
 
     def _calculate_from_params(self, params: dict) -> str:
         t = params.get("type")
@@ -163,8 +163,21 @@ class ToolsAgent:
     def _fitness_calculator(self, question: str) -> str:
         return self._regex_extract(question) or "Paramètres non reconnus."
 
+    def _normalize(self, question: str) -> str:
+        """Convertit les formats naturels en formats reconnus par le regex."""
+        q = question
+        # 1m93 / 1m80 → 193cm / 180cm
+        q = re.sub(r'\b(\d)m(\d{2})\b', lambda m: f"{int(m.group(1))*100+int(m.group(2))}cm", q, flags=re.IGNORECASE)
+        # 1.93m → 193cm
+        q = re.sub(r'\b1[.,](\d{2})m\b', lambda m: f"1{m.group(1)}cm", q, flags=re.IGNORECASE)
+        # activité fréquence → mots-clés reconnus
+        q = re.sub(r'[5-7]\s*(?:x|fois)\s*(?:par)?\s*(?:semaine|sem)', 'actif', q, flags=re.IGNORECASE)
+        q = re.sub(r'[3-4]\s*(?:x|fois)\s*(?:par)?\s*(?:semaine|sem)', 'modérément actif', q, flags=re.IGNORECASE)
+        q = re.sub(r'[1-2]\s*(?:x|fois)\s*(?:par)?\s*(?:semaine|sem)', 'légèrement actif', q, flags=re.IGNORECASE)
+        return q
+
     def _regex_extract(self, question: str) -> str | None:
-        q = question.lower()
+        q = self._normalize(question).lower()
 
         # 1RM : "80kg x 8 reps" / "80kg x 8" / "5 x 100kg" / "100kg pour 5 reps"
         weight, reps = None, None
