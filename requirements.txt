@@ -1,8 +1,10 @@
 langchain==0.3.25
 langchain-community==0.3.24
 langchain-ollama==0.2.3
+langchain-chroma==0.2.4
+langchain-huggingface==0.1.2
 langgraph==0.2.73
-chromadb==0.5.23
+chromadb>=1.0.0
 sentence-transformers==3.4.1
 duckduckgo-search==6.3.7
 pypdf==4.3.1

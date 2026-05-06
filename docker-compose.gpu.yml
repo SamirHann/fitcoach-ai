@@ -1,0 +1,11 @@
+# Override GPU pour laptop avec NVIDIA (RTX 5050, etc.)
+# Usage : docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

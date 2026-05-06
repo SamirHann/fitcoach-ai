@@ -25,7 +25,8 @@ else
 fi
 
 echo "→ Attente de ChromaDB ($CHROMA_HOST:$CHROMA_PORT)..."
-until curl -sf "http://$CHROMA_HOST:$CHROMA_PORT/api/v1/heartbeat" > /dev/null 2>&1; do
+until curl -sf "http://$CHROMA_HOST:$CHROMA_PORT/api/v2/heartbeat" > /dev/null 2>&1 || \
+      curl -sf "http://$CHROMA_HOST:$CHROMA_PORT/api/v1/heartbeat" > /dev/null 2>&1; do
     sleep 2
 done
 echo "✓ ChromaDB disponible"
