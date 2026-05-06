@@ -1,6 +1,6 @@
 # FitCoach AI — Assistant Musculation Multi-Agents
 
-Système multi-agents IA spécialisé en musculation. Répond à partir de documents réels (RAG), calcule des données personnalisées (1RM, TDEE, macros) et cherche des études récentes via DuckDuckGo.
+Système multi-agents IA spécialisé en musculation. Répond à partir de documents réels (RAG), calcule des données personnalisées (1RM, TDEE, macros) et cherche des études récentes via Tavily Search.
 
 ## Architecture
 
@@ -33,7 +33,7 @@ Agent RAG  Agent Tools
 - LLM : Ollama (mistral) via API locale
 
 ### Agent Tools
-- **Recherche web** : DuckDuckGo Search (sans clé API)
+- **Recherche web** : Tavily Search API (clé API requise — voir Installation)
 - **Calculateur fitness** : 1RM (Epley), TDEE (Harris-Benedict), macros
 - **Décision LLM** : le LLM Mistral choisit dynamiquement quel outil utiliser via un prompt dédié (`TOOL_DECISION_PROMPT`)
 - Fallback mots-clés si la décision LLM échoue
@@ -49,11 +49,13 @@ Agent RAG  Agent Tools
 ### Prérequis
 - Docker + Docker Compose
 - 4 GB RAM minimum (Ollama + mistral)
+- Une clé API Tavily gratuite → [tavily.com](https://tavily.com) (1 000 recherches/mois offertes)
 
 ### Démarrage en une seule commande
 
 ```bash
 cp .env.example .env
+# Ouvrir .env et renseigner TAVILY_API_KEY=ta_clé_ici
 docker compose up
 ```
 
@@ -115,23 +117,23 @@ formule d'Epley : poids × (1 + reps/30)).
 
 ## Tests
 
-> **Note :** Tests exécutés sur lxc-FitCoach avec `tinyllama` (CPU). Les réponses textuelles seront
-> plus précises avec `mistral` sur GPU. Les résultats de calcul (calculator) sont déterministes.
+> **Note :** Tests exécutés avec `mistral` (GPU). Les résultats de calcul (calculator) sont déterministes.
+> Le test runner complet est disponible via `docker compose run --rm --entrypoint "python /app/src/test_runner.py" app`.
 
 ### Tableau RAG
 
-| # | Question | Routage | Documents récupérés | LLM (tinyllama) | Statut infra |
+| # | Question | Routage | Documents récupérés | LLM (mistral) | Statut |
 |---|----------|---------|--------------------|-----------------|----|
-| 1 | "Quelle fréquence pour les pectoraux en PPL ?" | RAG ✅ | 3 chunks `exemple_programme.txt` ✅ | Contexte injecté, réponse générée (qualité selon modèle) | ✅ |
-| 2 | "Quel est le PIB de la France ?" | RAG ✅ | 3 chunks (fitness, hors-sujet détectable) ✅ | Réponse "Je n'ai pas de source…" attendue avec mistral | ✅ |
-| 3 | "Quel est le programme de LeBron James ?" | RAG ✅ | 3 chunks (hors-sujet) ✅ | Aveu d'absence de source attendu avec mistral | ✅ |
+| 1 | "Quelle fréquence pour les pectoraux en PPL ?" | RAG ✅ | 3 chunks `exemple_programme.txt` ✅ | Réponse sourcée avec citation `[Source: chunk N]` | ✅ |
+| 2 | "Quel est le PIB de la France ?" | RAG ✅ | 3 chunks (hors-sujet) ✅ | "Je n'ai pas de source sur ce sujet" | ✅ |
+| 3 | "Quel est le programme de LeBron James ?" | RAG ✅ | 3 chunks (hors-sujet) ✅ | Aveu d'absence de source + `[Source: Aucune]` | ✅ |
 
 ### Tableau Tools
 
 | # | Question | Outil appelé | Résultat brut (déterministe) | Résultat obtenu | Statut |
 |---|----------|-------------|------------------------------|-----------------|--------|
 | 1 | "Calcule mon 1RM : 80kg x 8 reps" | `calculator` ✅ | `1RM estimé (formule Epley) : 101.3 kg` | "Ton 1RM estimé est de 101.3 kg" | ✅ |
-| 2 | "Cherche des études récentes sur la créatine" | `web_search` ✅ | 3 résultats DuckDuckGo (titre + URL + extrait) | Résumé des sources par le LLM | ✅ |
+| 2 | "Cherche des études récentes sur la créatine" | `web_search` ✅ | 3 résultats Tavily (titre + URL + extrait) | Résumé des sources par le LLM | ✅ |
 | 3 | "Mon TDEE : 75kg, 175cm, 25 ans, homme, modéré" | `calculator` ✅ | `TDEE : 2776 kcal/jour` | "Ton TDEE est de 2776 kcal/jour" | ✅ |
 
 ---
@@ -173,15 +175,18 @@ fitcoach-ai/
 ├── README.md
 ├── AGENTS.md
 ├── docs/
-│   └── exemple_programme.txt
+│   ├── exemple_programme.txt
+│   ├── test_results.json    # Résultats bruts dernière exécution
+│   └── test_results.md      # Tableau Markdown dernière exécution
 └── src/
-    ├── main.py          # CLI
-    ├── router.py        # Orchestrateur LangGraph
-    ├── agent_rag.py     # Agent RAG
-    ├── agent_tools.py   # Agent Tools
-    ├── memory.py        # Mémoire conversationnelle
-    ├── calculator.py    # Calculs fitness
-    └── ingest.py        # Ingestion documents
+    ├── main.py              # CLI
+    ├── router.py            # Orchestrateur LangGraph
+    ├── agent_rag.py         # Agent RAG
+    ├── agent_tools.py       # Agent Tools (Tavily + calculateur)
+    ├── memory.py            # Mémoire conversationnelle
+    ├── calculator.py        # Calculs fitness
+    ├── ingest.py            # Ingestion documents
+    └── test_runner.py       # Suite de tests automatisée (6 cas)
 ```
 
 ---
@@ -194,7 +199,7 @@ fitcoach-ai/
 | RAG | LangChain + ChromaDB |
 | LLM | Ollama (mistral) |
 | Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
-| Recherche web | duckduckgo-search |
+| Recherche web | Tavily Search API |
 | Conteneurisation | Docker Compose |
 | Langage | Python 3.11 |
 
