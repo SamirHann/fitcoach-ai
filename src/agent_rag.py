@@ -39,7 +39,12 @@ class RAGAgent:
         self._llm = OllamaLLM(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL)
 
     def run(self, question: str) -> str:
-        docs = self._vectorstore.similarity_search(question, k=TOP_K)
+        if not question or not question.strip():
+            return "Je n'ai pas reçu de question valide."
+        try:
+            docs = self._vectorstore.similarity_search(question, k=TOP_K)
+        except Exception as e:
+            return f"Erreur lors de la recherche dans les documents : {e}"
 
         if not docs:
             return "Je n'ai pas de source sur ce sujet dans ma base de documents."
