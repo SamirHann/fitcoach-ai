@@ -1,6 +1,6 @@
 # FitCoach AI — Assistant Musculation Multi-Agents
 
-Système multi-agents IA spécialisé en musculation. Répond à partir de documents réels (RAG), calcule des données personnalisées (1RM, TDEE, macros) et cherche des études récentes via Tavily Search.
+Système multi-agents IA spécialisé en musculation. Répond à partir de documents réels (RAG), calcule des données personnalisées (1RM, TDEE, macros), cherche des études récentes via Tavily Search, et gère la conversation naturelle via un agent Chat dédié.
 
 ## Architecture
 
@@ -9,16 +9,17 @@ Utilisateur
     │
     ▼
 ┌─────────────┐
-│   Routeur   │  ← LangGraph orchestrateur
+│   Routeur   │  ← LangGraph orchestrateur (décision LLM + fallback mots-clés)
 │ (router.py) │
 └──────┬──────┘
        │
-  ┌────┴────┐
-  ▼         ▼
-Agent RAG  Agent Tools
-(ChromaDB) (Web + Calc)
-  │         │
-  └────┬────┘
+  ┌────┼────────┐
+  ▼    ▼        ▼
+Agent  Agent    Agent
+RAG    Tools    Chat
+(ChromaDB) (Tavily + Calc) (Conversation)
+  │    │        │
+  └────┴────────┘
        ▼
   Mémoire (3 tours)
        ▼
@@ -37,6 +38,16 @@ Agent RAG  Agent Tools
 - **Calculateur fitness** : 1RM (Epley), TDEE (Harris-Benedict), macros
 - **Décision LLM** : le LLM Mistral choisit dynamiquement quel outil utiliser via un prompt dédié (`TOOL_DECISION_PROMPT`)
 - Fallback mots-clés si la décision LLM échoue
+
+### Agent Chat
+- Gère les messages conversationnels (salutations, remerciements, questions sur l'IA)
+- Répond via le LLM mistral avec un prompt conversationnel dédié, sans RAG ni outils
+- Aucune citation de documents — réponse directe, courte et naturelle
+
+### Routage (router.py)
+- **Décision LLM** : mistral classe chaque message en `rag`, `tools` ou `chat` via `ROUTING_PROMPT`
+- **Fallback mots-clés** : utilisé si le LLM échoue ou retourne une réponse ambiguë
+- Latence : +5-10s par message pour l'appel LLM de routage (sur CPU avec mistral)
 
 ### Mémoire
 - Fenêtre glissante des **3 derniers échanges**
@@ -120,6 +131,14 @@ formule d'Epley : poids × (1 + reps/30)).
 > **Note :** Tests exécutés avec `mistral` (GPU). Les résultats de calcul (calculator) sont déterministes.
 > Le test runner complet est disponible via `docker compose run --rm --entrypoint "python /app/src/test_runner.py" app`.
 
+### Tableau Chat
+
+| # | Question | Routage | Résultat obtenu | Statut |
+|---|----------|---------|-----------------|--------|
+| 1 | "Bonjour !" | Chat ✅ | Salutation + présentation des capacités | ✅ |
+| 2 | "Comment tu vas ?" | Chat ✅ | Réponse conversationnelle naturelle | ✅ |
+| 3 | "Merci !" | Chat ✅ | Réponse chaleureuse courte | ✅ |
+
 ### Tableau RAG
 
 | # | Question | Routage | Documents récupérés | LLM (mistral) | Statut |
@@ -180,11 +199,12 @@ fitcoach-ai/
 │   └── test_results.md      # Tableau Markdown dernière exécution
 └── src/
     ├── main.py              # CLI
-    ├── router.py            # Orchestrateur LangGraph
-    ├── agent_rag.py         # Agent RAG
-    ├── agent_tools.py       # Agent Tools (Tavily + calculateur)
+    ├── router.py            # Orchestrateur LangGraph (routage LLM + fallback)
+    ├── agent_rag.py         # Agent RAG (ChromaDB + citations)
+    ├── agent_tools.py       # Agent Tools (Tavily + calculateur fitness)
+    ├── agent_chat.py        # Agent Chat (conversation naturelle)
     ├── memory.py            # Mémoire conversationnelle
-    ├── calculator.py        # Calculs fitness
+    ├── calculator.py        # Calculs fitness (fonctions pures)
     ├── ingest.py            # Ingestion documents
     └── test_runner.py       # Suite de tests automatisée (6 cas)
 ```
@@ -200,6 +220,7 @@ fitcoach-ai/
 | LLM | Ollama (mistral) |
 | Embeddings | sentence-transformers (all-MiniLM-L6-v2) |
 | Recherche web | Tavily Search API |
+| Conversation | Agent Chat (mistral) |
 | Conteneurisation | Docker Compose |
 | Langage | Python 3.11 |
 

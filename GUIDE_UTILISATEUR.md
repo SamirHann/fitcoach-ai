@@ -32,6 +32,30 @@ Tape ta question et appuie sur Entrée.
 
 ## Ce que l'IA peut faire
 
+### 0. Conversation naturelle
+L'IA comprend les messages conversationnels et y répond directement, sans chercher dans les documents fitness.
+
+**Exemples :**
+```
+Bonjour !
+Comment tu vas ?
+C'est quoi ton rôle ?
+Merci !
+```
+
+**Ce que tu verras :**
+```
+[Routeur] → Agent choisi : Chat
+
+[Final] → Bonjour ! Je suis FitCoach AI, ton assistant musculation.
+Pose-moi une question sur l'entraînement, la nutrition ou demande-moi
+un calcul (1RM, TDEE, macros) !
+```
+
+> **Note :** Le routeur utilise le LLM pour décider quel agent appeler. Cela ajoute quelques secondes de traitement pour chaque message, y compris les salutations.
+
+---
+
 ### 1. Répondre à tes questions sur l'entraînement
 L'IA consulte les documents chargés dans sa base (programmes PPL, guides, etc.) et te donne une réponse **sourcée avec citations précises**.
 

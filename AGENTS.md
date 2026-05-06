@@ -13,9 +13,10 @@ Guide pour les agents IA (Claude Code, Codex) travaillant sur ce sous-projet.
 ```
 src/
   main.py        ← point d'entrée CLI (ne pas modifier la boucle principale)
-  router.py      ← mots-clés de routage dans TOOLS_KEYWORDS
+  router.py      ← routage LLM (ROUTING_PROMPT) + fallback mots-clés
   agent_rag.py   ← SYSTEM_PROMPT verrouillé, TOP_K=3
   agent_tools.py ← CALC_KEYWORDS, regex d'extraction des paramètres
+  agent_chat.py  ← CHAT_PROMPT, réponses conversationnelles via LLM
   memory.py      ← ConversationMemory(max_turns=3)
   calculator.py  ← fonctions pures, pas de dépendances externes
   ingest.py      ← ingestion idempotente (relancer = ré-indexer)
@@ -74,11 +75,14 @@ docker compose build app
 
 1. Créer `src/agent_nouveau.py` avec une classe `.run(question: str) -> str`
 2. Ajouter le nœud dans `router.py` → `graph.add_node("nouveau", nouveau_node)`
-3. Ajouter les mots-clés dans `_choose_agent` et les edges conditionnels
+3. Mettre à jour `ROUTING_PROMPT` pour inclure la nouvelle catégorie
+4. Ajouter les mots-clés de fallback dans `_TOOLS_KW` ou `_CHAT_KW` selon le cas
+5. Ajouter l'edge conditionnel dans `graph.add_conditional_edges`
 
 ## Tests manuels recommandés
 
 ```
+Question Chat   : "bonjour" / "comment tu vas ?" / "merci !"
 Question RAG    : "Quels exercices pour les pectoraux en PPL ?"
 Question Tools  : "Calcule mon 1RM : 80kg x 8 reps"
 Question TDEE   : "Mon TDEE : 75kg, 175cm, 25 ans, homme, modérément actif"
