@@ -42,21 +42,27 @@ OLLAMA_MODEL=mistral
 ## Commandes utiles
 
 ```bash
-# Lancer les services
+# Démarrage complet en une commande (init auto + CLI)
+docker compose up
+
+# Mode détaché : services en arrière-plan, CLI interactive séparée
 docker compose up -d chromadb ollama
+docker compose run --rm app
 
-# Télécharger le modèle (première fois)
-docker compose exec ollama ollama pull mistral
-
-# Ingérer les documents
-docker compose run --rm app python src/ingest.py
-
-# Lancer la CLI
-docker compose run -it app python src/main.py
+# Forcer la ré-ingestion (sinon idempotente)
+docker compose run --rm --entrypoint python app /app/src/ingest.py
 
 # Rebuild après modification du code
 docker compose build app
 ```
+
+## Workflow d'initialisation (entrypoint.sh)
+
+1. Attend `OLLAMA_BASE_URL/api/tags`
+2. Vérifie présence de `OLLAMA_MODEL`, télécharge sinon
+3. Attend `CHROMA_HOST:CHROMA_PORT/api/v1/heartbeat`
+4. Si la collection `fitcoach` est vide → lance `ingest.py`
+5. `exec python /app/src/main.py` pour la CLI
 
 ## Ajouter un nouvel outil à l'agent Tools
 

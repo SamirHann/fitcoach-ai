@@ -35,7 +35,8 @@ Agent RAG  Agent Tools
 ### Agent Tools
 - **Recherche web** : DuckDuckGo Search (sans clé API)
 - **Calculateur fitness** : 1RM (Epley), TDEE (Harris-Benedict), macros
-- Décision automatique outil selon la question
+- **Décision LLM** : le LLM Mistral choisit dynamiquement quel outil utiliser via un prompt dédié (`TOOL_DECISION_PROMPT`)
+- Fallback mots-clés si la décision LLM échoue
 
 ### Mémoire
 - Fenêtre glissante des **3 derniers échanges**
@@ -49,23 +50,29 @@ Agent RAG  Agent Tools
 - Docker + Docker Compose
 - 4 GB RAM minimum (Ollama + mistral)
 
-### Démarrage
+### Démarrage en une seule commande
 
 ```bash
-# 1. Copier le fichier de config
 cp .env.example .env
+docker compose up
+```
 
-# 2. Démarrer ChromaDB et Ollama
+C'est tout. L'`entrypoint.sh` du conteneur `app` se charge automatiquement de :
+1. Attendre qu'Ollama et ChromaDB soient prêts
+2. Télécharger le modèle `mistral` (première fois uniquement, ~4 GB)
+3. Ingérer les documents du dossier `docs/` dans ChromaDB (idempotent)
+4. Lancer la CLI interactive
+
+> **Note :** la première exécution prend 5-10 minutes (téléchargement du modèle Ollama).
+> Les exécutions suivantes démarrent en quelques secondes.
+
+### Mode interactif détaché
+
+Si tu préfères lancer les services en arrière-plan puis attacher la CLI :
+
+```bash
 docker compose up -d chromadb ollama
-
-# 3. Télécharger le modèle Ollama (première fois seulement)
-docker compose exec ollama ollama pull mistral
-
-# 4. Ingérer les documents
-docker compose run --rm app python src/ingest.py
-
-# 5. Lancer la CLI
-docker compose run -it app python src/main.py
+docker compose run --rm app
 ```
 
 ### Ajouter vos propres documents

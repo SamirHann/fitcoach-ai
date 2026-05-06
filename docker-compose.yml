@@ -2,10 +2,8 @@ services:
   app:
     build: .
     depends_on:
-      chromadb:
-        condition: service_healthy
-      ollama:
-        condition: service_started
+      - chromadb
+      - ollama
     volumes:
       - ./docs:/app/docs
     env_file:
@@ -19,11 +17,7 @@ services:
       - "8000:8000"
     volumes:
       - chroma_data:/chroma/.chroma/index
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+    restart: unless-stopped
 
   ollama:
     image: ollama/ollama:latest
@@ -31,6 +25,7 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    restart: unless-stopped
 
 volumes:
   chroma_data:
