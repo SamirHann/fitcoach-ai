@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pré-charger le modèle d'embeddings (compile ONNX une seule fois au build)
+RUN python -c "from langchain_huggingface import HuggingFaceEmbeddings; HuggingFaceEmbeddings(model_name='all-MiniLM-L6-v2')" 2>/dev/null || true
+
 COPY src ./src
 COPY docs ./docs
 COPY entrypoint.sh /app/entrypoint.sh

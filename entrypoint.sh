@@ -58,7 +58,7 @@ if needs_ingest:
 EOF
 
 echo ""
-echo "✓ Initialisation terminée — lancement de FitCoach AI"
+echo "✓ Initialisation terminée"
 echo ""
 
-exec python /app/src/main.py
+exec ${@:-python /app/src/main.py}

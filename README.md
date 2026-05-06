@@ -105,9 +105,9 @@ Vous: Calcule mon 1RM : 80kg x 8 reps
 
 [Routeur] → Agent choisi : Tools
 [Outil] → calculator appelé
-         Résultat brut : 1RM estimé (formule Epley) : 106.7 kg
+         Résultat brut : 1RM estimé (formule Epley) : 101.3 kg
 
-[Final] → Ton 1RM estimé est de 106.7 kg (basé sur 80 kg × 8 reps,
+[Final] → Ton 1RM estimé est de 101.3 kg (basé sur 80 kg × 8 reps,
 formule d'Epley : poids × (1 + reps/30)).
 ```
 
@@ -115,21 +115,24 @@ formule d'Epley : poids × (1 + reps/30)).
 
 ## Tests
 
+> **Note :** Tests exécutés sur lxc-FitCoach avec `tinyllama` (CPU). Les réponses textuelles seront
+> plus précises avec `mistral` sur GPU. Les résultats de calcul (calculator) sont déterministes.
+
 ### Tableau RAG
 
-| # | Question | Résultat attendu | Résultat obtenu | Statut |
-|---|----------|-----------------|-----------------|--------|
-| 1 | "Quelle fréquence pour les pectoraux en PPL ?" | Réponse sourcée avec citation `[Source: exemple_programme.txt, chunk N]` | Réponse avec citation correcte | ✅ |
-| 2 | "Quel est le PIB de la France ?" | Refus poli + redirection vers la musculation | "Je n'ai pas de source sur ce sujet dans ma base de documents." | ✅ |
-| 3 | "Quel est le programme de LeBron James ?" | Aveu d'absence de source | "Je n'ai pas de source sur ce sujet dans ma base de documents." | ✅ |
+| # | Question | Routage | Documents récupérés | LLM (tinyllama) | Statut infra |
+|---|----------|---------|--------------------|-----------------|----|
+| 1 | "Quelle fréquence pour les pectoraux en PPL ?" | RAG ✅ | 3 chunks `exemple_programme.txt` ✅ | Contexte injecté, réponse générée (qualité selon modèle) | ✅ |
+| 2 | "Quel est le PIB de la France ?" | RAG ✅ | 3 chunks (fitness, hors-sujet détectable) ✅ | Réponse "Je n'ai pas de source…" attendue avec mistral | ✅ |
+| 3 | "Quel est le programme de LeBron James ?" | RAG ✅ | 3 chunks (hors-sujet) ✅ | Aveu d'absence de source attendu avec mistral | ✅ |
 
 ### Tableau Tools
 
-| # | Question | Outil appelé | Résultat attendu | Statut |
-|---|----------|-------------|-----------------|--------|
-| 1 | "Calcule mon 1RM : 80kg x 8 reps" | `calculator` | 1RM = 106.7 kg (formule Epley) | ✅ |
-| 2 | "Cherche des études récentes sur la créatine" | `web_search` | 3 résultats DuckDuckGo pertinents | ✅ |
-| 3 | "Mon TDEE : 75kg, 175cm, 25 ans, homme, modéré" | `calculator` | TDEE ≈ 2900 kcal/jour | ✅ |
+| # | Question | Outil appelé | Résultat brut (déterministe) | Résultat obtenu | Statut |
+|---|----------|-------------|------------------------------|-----------------|--------|
+| 1 | "Calcule mon 1RM : 80kg x 8 reps" | `calculator` ✅ | `1RM estimé (formule Epley) : 101.3 kg` | "Ton 1RM estimé est de 101.3 kg" | ✅ |
+| 2 | "Cherche des études récentes sur la créatine" | `web_search` ✅ | 3 résultats DuckDuckGo (titre + URL + extrait) | Résumé des sources par le LLM | ✅ |
+| 3 | "Mon TDEE : 75kg, 175cm, 25 ans, homme, modéré" | `calculator` ✅ | `TDEE : 2776 kcal/jour` | "Ton TDEE est de 2776 kcal/jour" | ✅ |
 
 ---
 
