@@ -26,6 +26,11 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
+    environment:
+      - OLLAMA_NUM_PARALLEL=1       # une seule requête à la fois
+      - OLLAMA_MAX_QUEUE=2          # file d'attente limitée
+      - OLLAMA_FLASH_ATTENTION=1    # réduit l'utilisation VRAM
+      - OLLAMA_GPU_OVERHEAD=512     # réserve 512MB VRAM pour le système
     deploy:
       resources:
         reservations:

@@ -23,37 +23,20 @@ CALC_FALLBACK_KEYWORDS = (
     "protéines", "glucides", "lipides", "kg ×", "kg x", "reps",
 )
 
-TOOL_DECISION_PROMPT = """Tu es un routeur d'outils pour un assistant musculation.
-Tu dois décider quel outil appeler pour répondre à la question de l'utilisateur.
+COMBINED_PROMPT = """Tu es un assistant fitness. Analyse la question et retourne UNIQUEMENT un JSON valide.
 
-OUTILS DISPONIBLES :
-- calculator : pour tout calcul fitness (1RM, TDEE, calories, macros)
-- web_search : pour rechercher des informations récentes ou des études en ligne
+Types possibles :
+- 1RM       → {{"type":"1rm","weight_kg":X,"reps":N}}
+- TDEE      → {{"type":"tdee","weight_kg":X,"height_cm":X,"age":X,"gender":"homme ou femme","activity":"sedentaire ou leger ou modere ou actif ou tres_actif"}}
+- Macros    → {{"type":"macros","weight_kg":X,"tdee_kcal":X,"goal":"prise ou seche ou maintien"}}
+- Recherche → {{"type":"web_search"}}
+- Manquant  → {{"type":"missing","need":"infos manquantes"}}
+- Inconnu   → {{"type":"unknown"}}
 
-INSTRUCTIONS :
-- Réponds UNIQUEMENT par "TOOL: calculator" OU "TOOL: web_search"
-- Aucune autre information, aucune explication.
+Conversions : 1m93 ou 1.93m → height_cm 193 | recomposition → maintien | modérément actif → modere
+Si l'âge est absent pour un TDEE → type missing.
 
-Question utilisateur : {question}
-
-Ta décision :"""
-
-EXTRACTION_PROMPT = """Analyse la question et extrais les paramètres fitness. Retourne UNIQUEMENT un JSON valide.
-
-Types de calcul :
-- 1RM  → {{"type":"1rm","weight_kg":X,"reps":N}}
-- TDEE → {{"type":"tdee","weight_kg":X,"height_cm":X,"age":X,"gender":"homme ou femme","activity":"sedentaire ou leger ou modere ou actif ou tres_actif"}}
-- Macros → {{"type":"macros","weight_kg":X,"tdee_kcal":X,"goal":"prise ou seche ou maintien"}}
-- Paramètres manquants → {{"type":"missing","need":"liste des informations manquantes"}}
-- Calcul inconnu → {{"type":"unknown"}}
-
-Conversions importantes :
-- 1m93 ou 1.93m → height_cm: 193
-- recomposition corporelle → goal: maintien
-- "modérément actif" → activity: modere
-- Si l'âge n'est pas mentionné → type: missing
-
-Réponds UNIQUEMENT avec le JSON brut, sans markdown ni explication.
+JSON brut uniquement, sans markdown.
 
 Question : {question}"""
 
@@ -81,46 +64,73 @@ class ToolsAgent:
         self._llm = OllamaLLM(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL)
 
     def run(self, question: str) -> str:
-        tool = self._decide_tool_with_llm(question)
-
-        if tool == "calculator":
-            print(f"\n[Outil] → calculator appelé")
-            raw_result = self._fitness_calculator(question)
-            preview = raw_result[:200] + ("..." if len(raw_result) > 200 else "")
-            print(f"         Résultat brut : {preview}")
+        # Essai regex d'abord (zéro LLM call)
+        raw_result = self._regex_extract(question)
+        if raw_result:
+            print(f"\n[Outil] → calculator appelé (regex)")
+            print(f"         Résultat brut : {raw_result[:200]}")
             return raw_result
+
+        # Un seul appel LLM pour décider ET extraire
+        params = self._combined_llm_decision(question)
+        t = params.get("type") if params else None
+
+        if t in ("1rm", "tdee", "macros", "missing"):
+            print(f"\n[Outil] → calculator appelé")
+            result = self._calculate_from_params(params)
+            print(f"         Résultat brut : {result[:200]}")
+            return result
+
+        # web_search ou fallback mots-clés
+        if t != "web_search":
+            q = question.lower()
+            if any(kw in q for kw in CALC_FALLBACK_KEYWORDS):
+                print(f"\n[Outil] → calculator appelé (fallback)")
+                return self._regex_extract(question) or "Je n'ai pas pu extraire les paramètres."
 
         print(f"\n[Outil] → web_search appelé")
         raw_result = self._web_search(question)
-        preview = raw_result[:200] + ("..." if len(raw_result) > 200 else "")
-        print(f"         Résultat brut : {preview}")
+        print(f"         Résultat brut : {raw_result[:200]}")
         history = self.memory.get_context_string()
         prompt = ANSWER_PROMPT.format(
-            history=history,
-            tool=tool,
-            raw_result=raw_result,
-            question=question,
+            history=history, tool="web_search",
+            raw_result=raw_result, question=question,
         )
         return self._llm.invoke(prompt)
 
-    def _decide_tool_with_llm(self, question: str) -> str:
-        prompt = TOOL_DECISION_PROMPT.format(question=question)
+    def _combined_llm_decision(self, question: str) -> dict | None:
         try:
-            decision = self._llm.invoke(prompt).strip().lower()
-            if "calculator" in decision or "calc" in decision:
-                return "calculator"
-            if "web_search" in decision or "web" in decision:
-                return "web_search"
-            print("[Tools] ⚠ Décision LLM ambiguë, fallback mots-clés")
+            raw = self._llm.invoke(COMBINED_PROMPT.format(question=question)).strip()
+            if "```" in raw:
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            return json.loads(raw.strip())
         except Exception as e:
-            print(f"[Tools] ⚠ Erreur LLM ({e}), fallback mots-clés")
-        return self._decide_tool_fallback(question)
+            print(f"[Tools] ⚠ LLM combiné échoué ({e}), fallback mots-clés")
+            return None
 
-    def _decide_tool_fallback(self, question: str) -> str:
-        q = question.lower()
-        if any(kw in q for kw in CALC_FALLBACK_KEYWORDS):
-            return "calculator"
-        return "web_search"
+    def _calculate_from_params(self, params: dict) -> str:
+        t = params.get("type")
+        try:
+            if t == "1rm":
+                return format_1rm(float(params["weight_kg"]), int(params["reps"]))
+            if t == "tdee":
+                return format_tdee(
+                    float(params["weight_kg"]), float(params["height_cm"]),
+                    int(params["age"]), params.get("gender", "homme"),
+                    params.get("activity", "modere"),
+                )
+            if t == "macros":
+                return format_macros(
+                    float(params["tdee_kcal"]), params.get("goal", "maintien"),
+                    float(params["weight_kg"]),
+                )
+            if t == "missing":
+                return f"Il me manque quelques informations : {params.get('need', 'précise ta demande')}."
+        except (KeyError, ValueError, TypeError) as e:
+            pass
+        return "Je n'ai pas pu effectuer le calcul avec les paramètres reçus."
 
     def _web_search(self, query: str) -> str:
         try:
@@ -142,12 +152,7 @@ class ToolsAgent:
             return f"Erreur recherche web : {e}"
 
     def _fitness_calculator(self, question: str) -> str:
-        # Essai regex d'abord (rapide, sans LLM)
-        result = self._regex_extract(question)
-        if result:
-            return result
-        # Fallback : extracteur LLM pour le langage naturel
-        return self._llm_extract(question)
+        return self._regex_extract(question) or "Paramètres non reconnus."
 
     def _regex_extract(self, question: str) -> str | None:
         q = question.lower()
@@ -214,39 +219,3 @@ class ToolsAgent:
 
         return None
 
-    def _llm_extract(self, question: str) -> str:
-        try:
-            raw = self._llm.invoke(EXTRACTION_PROMPT.format(question=question)).strip()
-            # Nettoyer les blocs markdown éventuels
-            if "```" in raw:
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
-            params = json.loads(raw.strip())
-
-            t = params.get("type")
-            if t == "1rm":
-                return format_1rm(float(params["weight_kg"]), int(params["reps"]))
-            elif t == "tdee":
-                return format_tdee(
-                    float(params["weight_kg"]),
-                    float(params["height_cm"]),
-                    int(params["age"]),
-                    params.get("gender", "homme"),
-                    params.get("activity", "modere"),
-                )
-            elif t == "macros":
-                return format_macros(
-                    float(params["tdee_kcal"]),
-                    params.get("goal", "maintien"),
-                    float(params["weight_kg"]),
-                )
-            elif t == "missing":
-                return f"Il me manque quelques informations : {params.get('need', 'précise ta demande')}."
-        except Exception:
-            pass
-
-        return (
-            "Je n'ai pas pu extraire les paramètres nécessaires au calcul. "
-            "Essaie par exemple : '80 kg × 8 reps' ou '75kg, 175cm, 25 ans, homme, modérément actif'."
-        )
