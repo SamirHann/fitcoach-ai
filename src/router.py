@@ -16,7 +16,7 @@ load_dotenv()
 TOOLS_KEYWORDS = (
     "calcul", "calculer", "calcule", "tdee", "1rm", "one rep max",
     "calories", "macros", "macro", "protéines", "glucides", "lipides",
-    "combien", "kg ×", "kg x", "reps", "répétitions",
+    "kg ×", "kg x", "reps", "répétitions",
     "cherche", "recherche", "étude", "récent", "dernières nouvelles",
     "actualité", "news", "2024", "2025",
 )

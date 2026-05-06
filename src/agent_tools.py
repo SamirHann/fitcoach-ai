@@ -67,13 +67,14 @@ class ToolsAgent:
         if tool == "calculator":
             print(f"\n[Outil] → calculator appelé")
             raw_result = self._fitness_calculator(question)
-        else:
-            print(f"\n[Outil] → web_search appelé")
-            raw_result = self._web_search(question)
+            preview = raw_result[:200] + ("..." if len(raw_result) > 200 else "")
+            print(f"         Résultat brut : {preview}")
+            return raw_result
 
+        print(f"\n[Outil] → web_search appelé")
+        raw_result = self._web_search(question)
         preview = raw_result[:200] + ("..." if len(raw_result) > 200 else "")
         print(f"         Résultat brut : {preview}")
-
         history = self.memory.get_context_string()
         prompt = ANSWER_PROMPT.format(
             history=history,
@@ -106,7 +107,7 @@ class ToolsAgent:
 
     def _web_search(self, query: str) -> str:
         try:
-            results = DDGS().text(query, max_results=3)
+            results = DDGS().text(query, max_results=3, backend="html")
             if not results:
                 return "Aucun résultat trouvé pour cette recherche."
             lines = []
@@ -121,12 +122,17 @@ class ToolsAgent:
     def _fitness_calculator(self, question: str) -> str:
         q = question.lower()
 
-        # 1RM : "80kg x 8 reps" ou "80 kg 8 répétitions"
-        m = re.search(r"(\d+(?:\.\d+)?)\s*kg[^\d]*(\d+)\s*(?:reps?|répétitions?)", q)
-        if "1rm" in q or m:
-            if m:
-                weight = float(m.group(1))
-                reps = int(m.group(2))
+        # 1RM : "80kg x 8 reps" / "80kg 8 fois" / "5 * 100kg" / "5 répétitions de 100kg"
+        weight, reps = None, None
+        m = re.search(r"(\d+(?:\.\d+)?)\s*kg[^\d]*(\d+)\s*(?:reps?|répétitions?|fois)", q)
+        if m:
+            weight, reps = float(m.group(1)), int(m.group(2))
+        else:
+            m2 = re.search(r"(\d+)\s*(?:\*|×|x|fois|reps?|répétitions?)\s*(?:de\s*|à\s*)?(\d+(?:\.\d+)?)\s*kg", q)
+            if m2:
+                reps, weight = int(m2.group(1)), float(m2.group(2))
+        if "1rm" in q or (weight is not None and reps is not None):
+            if weight is not None and reps is not None:
                 return format_1rm(weight, reps)
 
         # TDEE : poids + taille + âge
