@@ -23,7 +23,7 @@ CALC_FALLBACK_KEYWORDS = (
     "protéines", "glucides", "lipides", "kg ×", "kg x", "reps",
 )
 
-COMBINED_PROMPT = """Tu es un assistant fitness. Analyse la question et retourne UNIQUEMENT un JSON valide.
+COMBINED_PROMPT = """Tu es un assistant fitness. Analyse la question (et l'historique si disponible) et retourne UNIQUEMENT un JSON valide.
 
 Types possibles :
 - 1RM       → {{"type":"1rm","weight_kg":X,"reps":N}}
@@ -33,12 +33,18 @@ Types possibles :
 - Manquant  → {{"type":"missing","need":"infos manquantes"}}
 - Inconnu   → {{"type":"unknown"}}
 
-Conversions : 1m93 ou 1.93m → height_cm 193 | recomposition → maintien | modérément actif → modere
-Si l'âge est absent pour un TDEE → type missing.
+Règles critiques :
+- 1m93 ou 1.93m → height_cm: 193
+- Le champ "activity" (TDEE) est TOUJOURS l'un de : sedentaire, leger, modere, actif, tres_actif
+- "maintien", "prise", "sèche" sont des OBJECTIFS → champ "goal" pour les macros UNIQUEMENT, jamais pour activity
+- Correspondances d'activité : "5x/semaine" ou "5 jours/semaine" → actif | "3-4x/semaine" → modere | "1-2x/semaine" → leger | "peu de sport" → sedentaire | "tous les jours intensément" → tres_actif
+- Si l'historique contient des données (poids, taille, âge), utilise-les pour compléter les paramètres manquants
 
-JSON brut uniquement, sans markdown.
+{history}
 
-Question : {question}"""
+Question : {question}
+
+JSON brut uniquement, sans markdown :"""
 
 ANSWER_PROMPT = """Tu es FitCoach AI, un assistant spécialisé en musculation et nutrition sportive.
 Tu réponds UNIQUEMENT aux questions liées au fitness.
@@ -100,7 +106,10 @@ class ToolsAgent:
 
     def _combined_llm_decision(self, question: str) -> dict | None:
         try:
-            raw = self._llm.invoke(COMBINED_PROMPT.format(question=question)).strip()
+            history = self.memory.get_context_string()
+            raw = self._llm.invoke(
+                COMBINED_PROMPT.format(question=question, history=history)
+            ).strip()
             if "```" in raw:
                 raw = raw.split("```")[1]
                 if raw.startswith("json"):

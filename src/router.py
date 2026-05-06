@@ -19,17 +19,18 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
 
 ROUTING_PROMPT = """Tu es un routeur pour FitCoach AI, assistant musculation.
-Classe la question dans une des 3 catégories :
+Classe le message dans une des 3 catégories :
 
 - chat  : salutation, remerciement, question sur l'assistant, conversation générale
 - tools : calcul fitness (1RM, TDEE, calories, macros) ou recherche web / études récentes
+          → INCLUT les corrections ou précisions sur un calcul précédent (activité, objectif, etc.)
 - rag   : question sur l'entraînement, exercices, programmes, nutrition sportive
 
-Réponds UNIQUEMENT par "ROUTE: chat", "ROUTE: tools" ou "ROUTE: rag". Rien d'autre.
+{history}
 
-Question : {question}
+Nouveau message : {question}
 
-Ta décision :"""
+Réponds UNIQUEMENT par "ROUTE: chat", "ROUTE: tools" ou "ROUTE: rag". Rien d'autre."""
 
 # Fallback mots-clés si le LLM de routage échoue
 _TOOLS_KW = (
@@ -63,10 +64,11 @@ def _fallback_route(question: str) -> Literal["rag", "tools", "chat"]:
     return "rag"
 
 
-def _llm_route(question: str, llm: OllamaLLM) -> Literal["rag", "tools", "chat"] | None:
+def _llm_route(question: str, llm: OllamaLLM, history: str = "") -> Literal["rag", "tools", "chat"] | None:
     """Retourne la décision LLM ou None si ambiguë/erreur."""
     try:
-        decision = llm.invoke(ROUTING_PROMPT.format(question=question)).strip().lower()
+        prompt = ROUTING_PROMPT.format(question=question, history=history)
+        decision = llm.invoke(prompt).strip().lower()
         if "chat" in decision:
             return "chat"
         if "tools" in decision:
@@ -86,7 +88,8 @@ def build_graph(memory: ConversationMemory) -> StateGraph:
 
     def router_node(state: RouterState) -> RouterState:
         question = state["question"]
-        agent = _llm_route(question, llm)
+        history = memory.get_context_string()
+        agent = _llm_route(question, llm, history)
         if agent is None:
             print("[Routeur] ⚠ Décision LLM ambiguë, fallback mots-clés")
             agent = _fallback_route(question)
