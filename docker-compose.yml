@@ -26,6 +26,13 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 volumes:
   chroma_data:
