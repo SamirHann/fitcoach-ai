@@ -1,0 +1,13 @@
+# Normalisation automatique des fins de ligne
+# Garantit LF sur tous les OS, même Windows
+* text=auto
+
+# Scripts shell : toujours LF (obligatoire pour exécution Linux/Docker)
+*.sh        text eol=lf
+entrypoint.sh text eol=lf
+
+# Fichiers binaires : aucune conversion
+*.png binary
+*.jpg binary
+*.pdf binary
+*.pyc binary
