@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.chroma/
+chroma_data/
+ollama_data/
+*.egg-info/
+.DS_Store
