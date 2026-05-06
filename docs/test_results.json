@@ -1,0 +1,68 @@
+[
+  {
+    "question": "Quelle fréquence pour les pectoraux en programme PPL ?",
+    "traces": "\n[Routeur] → Agent choisi : RAG\n\n[RAG] → Documents consultés :\n        exemple_programme.txt, chunk_2\n        exemple_programme.txt, chunk_27\n        exemple_programme.txt, chunk_1\n",
+    "answer": " [Source: exemple_programme.txt, chunk 1] Le programme Push/Pull/Legs répartit les groupes musculaires en trois catégories, dont le groupe des pectoraux est inclus dans la catégorie \"Push\" (pousser).\nLe programme se décline sur 5 jours pour optimiser la récupération tout en maintenant une fréquence d'entraînement de 2x par groupe musculaire toutes les 2 semaines [Source: exemple_programme.txt, chunk 2]. Ainsi, dans ce contexte, les pectoraux sont entraînés deux fois toutes les deux semaines.",
+    "error": null,
+    "elapsed_s": 73.0,
+    "case_id": 1,
+    "agent": "RAG",
+    "type": "Nominal",
+    "expected": "Réponse sourcée avec citation [Source: exemple_programme.txt, chunk N]"
+  },
+  {
+    "question": "Quel est le PIB de la France ?",
+    "traces": "\n[Routeur] → Agent choisi : RAG\n\n[RAG] → Documents consultés :\n        exemple_programme.txt, chunk_2\n        exemple_programme.txt, chunk_24\n        exemple_programme.txt, chunk_18\n",
+    "answer": " Je n'ai pas de source sur ce sujet dans ma base de documents. Le produit intérieur brut (PIB) de la France n'est pas spécifié dans les documents de référence fournis.",
+    "error": null,
+    "elapsed_s": 23.8,
+    "case_id": 2,
+    "agent": "RAG",
+    "type": "Hors sujet",
+    "expected": "Refus poli + redirection"
+  },
+  {
+    "question": "Quel est le programme d'entraînement personnel de LeBron James ?",
+    "traces": "\n[Routeur] → Agent choisi : RAG\n\n[RAG] → Documents consultés :\n        exemple_programme.txt, chunk_27\n        exemple_programme.txt, chunk_26\n        exemple_programme.txt, chunk_21\n",
+    "answer": " Le programme d'entraînement personnel de LeBron James n'est pas connu précisément car il est gardé secret et ne figure pas dans les documents fournis. [Source: Aucune]",
+    "error": null,
+    "elapsed_s": 30.8,
+    "case_id": 3,
+    "agent": "RAG",
+    "type": "Hallucination",
+    "expected": "Aveu d'absence de source"
+  },
+  {
+    "question": "Calcule mon 1RM : 80kg pour 8 reps",
+    "traces": "\n[Routeur] → Agent choisi : Tools\n\n[Outil] → calculator appelé\n         Résultat brut : 1RM estimé (formule Epley) : 101.3 kg\n  → Basé sur 80.0 kg × 8 répétitions\n",
+    "answer": "1RM estimé (formule Epley) : 101.3 kg\n  → Basé sur 80.0 kg × 8 répétitions",
+    "error": null,
+    "elapsed_s": 8.5,
+    "case_id": 4,
+    "agent": "Tools",
+    "type": "Nominal",
+    "expected": "1RM ≈ 106.7 kg (formule Epley)"
+  },
+  {
+    "question": "Cherche des études récentes sur la créatine",
+    "traces": "\n[Routeur] → Agent choisi : Tools\n\n[Outil] → web_search appelé\n         Résultat brut : • Avancées récentes sur la créatine (2020-2025) et leurs impacts\n  https://www.ericfavre.com/lifestyle/avancees-recentes-creatine/?srsltid=AfmBOopgNJzWrMkaUS1Ei0N8nHy7fxoMQCxhuw6txv94ypjIW0aQq0m4\n  De...\n",
+    "answer": " Il y a eu plusieurs études récentes qui montrent les avantages de la créatine pour la musculation et la récupération post-exercices. Voici quelques liens vers des articles détaillant ces recherches :\n\n1. <https://www.ericfavre.com/lifestyle/avancees-recentes-creatine/>\n2. <https://sonar.rero.ch/documents/315550/files/TBSc_GremaudNina_GaillardPierre.pdf>\n3. <https://www.protegez-vous.ca/sante-et-alimentation/supplements-proteines/le-boom-de-la-creatine-ce-que-vous-devriez-savoir-sur-ce-complement-alimentaire>",
+    "error": null,
+    "elapsed_s": 64.4,
+    "case_id": 5,
+    "agent": "Tools",
+    "type": "Recherche web",
+    "expected": "3 résultats web pertinents"
+  },
+  {
+    "question": "Calcule mon TDEE : 75kg, 175cm, 25 ans, homme, modérément actif",
+    "traces": "\n[Routeur] → Agent choisi : Tools\n\n[Outil] → calculator appelé\n         Résultat brut : TDEE (dépense énergétique journalière) : 2776 kcal/jour\n  → 75.0 kg | 175.0 cm | 25 ans | homme | activité: modere\n",
+    "answer": "TDEE (dépense énergétique journalière) : 2776 kcal/jour\n  → 75.0 kg | 175.0 cm | 25 ans | homme | activité: modere",
+    "error": null,
+    "elapsed_s": 10.1,
+    "case_id": 6,
+    "agent": "Tools",
+    "type": "TDEE",
+    "expected": "TDEE ≈ 2700-2900 kcal/jour"
+  }
+]

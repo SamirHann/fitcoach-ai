@@ -6,7 +6,7 @@ langchain-huggingface==0.1.2
 langgraph==0.2.73
 chromadb>=1.0.0
 sentence-transformers==3.4.1
-duckduckgo-search==6.3.7
+tavily-python==0.5.1
 pypdf==4.3.1
 python-dotenv==1.0.1
 httpx==0.27.2

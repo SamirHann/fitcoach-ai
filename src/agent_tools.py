@@ -8,7 +8,7 @@ Une heuristique de secours (mots-clés) est utilisée si le LLM échoue.
 import os
 import re
 
-from duckduckgo_search import DDGS
+from tavily import TavilyClient
 from langchain_ollama import OllamaLLM
 
 from calculator import calc_tdee, format_1rm, format_tdee, format_macros
@@ -107,14 +107,19 @@ class ToolsAgent:
 
     def _web_search(self, query: str) -> str:
         try:
-            results = DDGS().text(query, max_results=3, backend="html")
+            api_key = os.getenv("TAVILY_API_KEY", "")
+            if not api_key:
+                return "Clé API Tavily manquante (TAVILY_API_KEY dans .env)."
+            client = TavilyClient(api_key=api_key)
+            response = client.search(query, max_results=3)
+            results = response.get("results", [])
             if not results:
                 return "Aucun résultat trouvé pour cette recherche."
             lines = []
             for r in results:
                 lines.append(f"• {r.get('title', 'Sans titre')}")
-                lines.append(f"  {r.get('href', '')}")
-                lines.append(f"  {r.get('body', '')[:200]}")
+                lines.append(f"  {r.get('url', '')}")
+                lines.append(f"  {r.get('content', '')[:200]}")
             return "\n".join(lines)
         except Exception as e:
             return f"Erreur recherche web : {e}"
