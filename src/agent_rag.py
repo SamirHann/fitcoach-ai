@@ -5,7 +5,6 @@ import os
 
 import chromadb
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
 from langchain_ollama import OllamaLLM
 
 from memory import ConversationMemory
@@ -31,33 +30,36 @@ class RAGAgent:
         self.memory = memory
         self._embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         self._chroma_client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-        self._vectorstore = Chroma(
-            client=self._chroma_client,
-            collection_name=COLLECTION_NAME,
-            embedding_function=self._embeddings,
-        )
         self._llm = OllamaLLM(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL)
 
     def run(self, question: str) -> str:
         if not question or not question.strip():
             return "Je n'ai pas reçu de question valide."
+
+        # Recherche directe via ChromaDB (sans passer par langchain-chroma)
         try:
-            docs = self._vectorstore.similarity_search(question, k=TOP_K)
+            q_emb = self._embeddings.embed_query(question)
+            collection = self._chroma_client.get_collection(COLLECTION_NAME)
+            results = collection.query(
+                query_embeddings=[q_emb],
+                n_results=TOP_K,
+                include=["documents", "metadatas"],
+            )
+            contents = results.get("documents", [[]])[0]
+            metadatas = results.get("metadatas", [[]])[0]
         except Exception as e:
             return f"Erreur lors de la recherche dans les documents : {e}"
 
-        if not docs:
+        if not contents:
             return "Je n'ai pas de source sur ce sujet dans ma base de documents."
 
         print("\n[RAG] → Documents consultés :")
         context_parts = []
-        for i, doc in enumerate(docs):
-            source = doc.metadata.get("source_file", "inconnu")
-            chunk_idx = doc.metadata.get("chunk_index", i)
+        for i, (content, meta) in enumerate(zip(contents, metadatas)):
+            source = meta.get("source_file", "inconnu")
+            chunk_idx = meta.get("chunk_index", i)
             print(f"        {source}, chunk_{chunk_idx}")
-            context_parts.append(
-                f"[Source: {source}, chunk {chunk_idx}]\n{doc.page_content}"
-            )
+            context_parts.append(f"[Source: {source}, chunk {chunk_idx}]\n{content}")
 
         context = "\n\n".join(context_parts)
         history = self.memory.get_context_string()
@@ -74,5 +76,4 @@ class RAGAgent:
 
 Réponds en citant tes sources avec le format [Source: nom_fichier, chunk N].
 """
-
         return self._llm.invoke(prompt)
