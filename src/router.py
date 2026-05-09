@@ -54,6 +54,8 @@ _CHAT_KW = (
     "au revoir", "bye", "à bientôt", "bonne journée",
     "comment tu", "comment vas", "ça va", "comment t'appelles",
     "qui es-tu", "qu'est-ce que tu es", "présente-toi",
+    "tu peux faire", "tu sais faire", "à quoi tu sers", "tu peux m'aider",
+    "tes capacités", "ton rôle", "tu fais quoi", "faire quoi",
 )
 
 
