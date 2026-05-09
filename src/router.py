@@ -28,8 +28,10 @@ Classe le message dans une des 3 catégories :
           → Web : actualités, études récentes, "2024", "2025", nouvelles, dernières recherches
           → Corrections de calcul : "en fait 5x/semaine", "plutôt actif", "non 3 fois par semaine"
 - rag   : question générale sur l'entraînement, exercices, programmes, nutrition sportive
+          → inclut : récupération, sommeil sportif, blessures, mobilité, stretching, technique
           → "combien de protéines par jour ?" sans chiffres personnels = rag
           → "quel programme débutant ?" = rag
+          → "comment optimiser mon sommeil pour la récupération ?" = rag
 
 {history}
 
@@ -75,11 +77,13 @@ class RouterState(TypedDict):
 
 def _strong_route(question: str) -> Literal["rag", "tools", "chat"] | None:
     """Route déterministe sur keywords forts — bypass le LLM.
-    Tools vérifié en premier : évite que 'ok' dans _CHAT_KW court-circuite '8 x 80kg'."""
+    - Tools toujours en premier (regex 1RM + keywords).
+    - Chat seulement sur messages courts (≤ 5 mots) : évite que 'parfait,' ou 'super,'
+      en début d'une vraie question soient interceptés comme chat."""
     q = question.lower()
     if any(kw in q for kw in _STRONG_TOOLS_KW) or bool(_1RM_RE.search(q)):
         return "tools"
-    if any(kw in q for kw in _CHAT_KW):
+    if any(kw in q for kw in _CHAT_KW) and len(q.split()) <= 5:
         return "chat"
     return None
 
