@@ -22,9 +22,13 @@ ROUTING_PROMPT = """Tu es un routeur pour FitCoach AI, assistant musculation.
 Classe le message dans une des 3 catégories :
 
 - chat  : salutation, remerciement, question sur l'assistant, conversation générale
-- tools : calcul fitness (1RM, TDEE, calories, macros) ou recherche web / études récentes
-          → INCLUT les corrections ou précisions sur un calcul précédent (activité, objectif, etc.)
-- rag   : question sur l'entraînement, exercices, programmes, nutrition sportive
+- tools : calcul fitness (1RM, TDEE, calories, macros) OU recherche web/actualités
+          → Calculs : contient des chiffres + kg/reps/cm/ans ou mots "1rm","tdee","macros","calories"
+          → Web : actualités, études récentes, "2024", "2025", nouvelles, dernières recherches
+          → Corrections de calcul : "en fait 5x/semaine", "plutôt actif", "non 3 fois par semaine"
+- rag   : question générale sur l'entraînement, exercices, programmes, nutrition sportive
+          → "combien de protéines par jour ?" sans chiffres personnels = rag
+          → "quel programme débutant ?" = rag
 
 {history}
 
@@ -32,13 +36,17 @@ Nouveau message : {question}
 
 Réponds UNIQUEMENT par "ROUTE: chat", "ROUTE: tools" ou "ROUTE: rag". Rien d'autre."""
 
-# Fallback mots-clés si le LLM de routage échoue
-_TOOLS_KW = (
+# Keywords forts : prennent priorité sur le LLM (sans ambiguïté)
+_STRONG_TOOLS_KW = (
     "calcul", "calculer", "calcule", "tdee", "1rm", "one rep max",
-    "calories", "macros", "macro", "protéines", "glucides", "lipides",
+    "calories", "macros", "macro",
     "kg ×", "kg x", "reps", "répétitions",
+    "x/semaine", "x/sem", "fois par sem", "fois par semaine",
+)
+# Keywords faibles : utilisés en fallback si LLM échoue
+_WEAK_TOOLS_KW = (
     "cherche", "recherche", "étude", "récent", "dernières nouvelles",
-    "actualité", "news", "2024", "2025",
+    "actualité", "actualités", "actu", "news", "2024", "2025",
 )
 _CHAT_KW = (
     "bonjour", "salut", "bonsoir", "hello", "coucou", "hey",
@@ -55,11 +63,22 @@ class RouterState(TypedDict):
     answer: str
 
 
-def _fallback_route(question: str) -> Literal["rag", "tools", "chat"]:
+def _strong_route(question: str) -> Literal["rag", "tools", "chat"] | None:
+    """Route déterministe sur keywords forts — bypass le LLM."""
     q = question.lower()
     if any(kw in q for kw in _CHAT_KW):
         return "chat"
-    if any(kw in q for kw in _TOOLS_KW):
+    if any(kw in q for kw in _STRONG_TOOLS_KW):
+        return "tools"
+    return None
+
+
+def _fallback_route(question: str) -> Literal["rag", "tools", "chat"]:
+    """Fallback final si LLM échoue ou est ambigu."""
+    q = question.lower()
+    if any(kw in q for kw in _CHAT_KW):
+        return "chat"
+    if any(kw in q for kw in _STRONG_TOOLS_KW) or any(kw in q for kw in _WEAK_TOOLS_KW):
         return "tools"
     return "rag"
 
@@ -88,12 +107,20 @@ def build_graph(memory: ConversationMemory) -> StateGraph:
 
     def router_node(state: RouterState) -> RouterState:
         question = state["question"]
+        labels = {"rag": "RAG", "tools": "Tools", "chat": "Chat"}
+
+        # 1. Keywords forts : déterministes, bypass LLM
+        agent = _strong_route(question)
+        if agent is not None:
+            print(f"\n[Routeur] → Agent choisi : {labels[agent]}")
+            return {**state, "agent": agent}
+
+        # 2. LLM pour les cas nuancés
         history = memory.get_context_string()
         agent = _llm_route(question, llm, history)
         if agent is None:
             print("[Routeur] ⚠ Décision LLM ambiguë, fallback mots-clés")
             agent = _fallback_route(question)
-        labels = {"rag": "RAG", "tools": "Tools", "chat": "Chat"}
         print(f"\n[Routeur] → Agent choisi : {labels[agent]}")
         return {**state, "agent": agent}
 

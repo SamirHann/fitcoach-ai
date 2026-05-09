@@ -39,6 +39,7 @@ Règles critiques :
 - "maintien", "prise", "sèche" sont des OBJECTIFS → champ "goal" pour les macros UNIQUEMENT, jamais pour activity
 - Correspondances d'activité : "5x/semaine" ou "5 jours/semaine" → actif | "3-4x/semaine" → modere | "1-2x/semaine" → leger | "peu de sport" → sedentaire | "tous les jours intensément" → tres_actif
 - Si l'historique contient des données (poids, taille, âge), utilise-les pour compléter les paramètres manquants
+- CORRECTION de calcul : si la question corrige une donnée d'un calcul précédent (ex: "en fait 5x/semaine", "plutôt actif", "non je fais 5 fois"), extrais les paramètres de l'historique et applique la correction → retourne le type TDEE avec la nouvelle valeur
 
 {history}
 
@@ -60,7 +61,9 @@ Langue : français.
 === Question de l'utilisateur ===
 {question}
 
-Formule une réponse claire, concise et utile basée uniquement sur le résultat de l'outil ci-dessus.
+Formule une réponse claire et concise en SYNTHÉTISANT le contenu des résultats.
+Ne liste PAS les URLs brutes. Cite uniquement les noms de sources entre parenthèses si pertinent.
+Réponds directement à la question de l'utilisateur en français.
 """
 
 
