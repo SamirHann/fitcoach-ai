@@ -30,10 +30,17 @@ Types possibles :
 - TDEE      → {{"type":"tdee","weight_kg":X,"height_cm":X,"age":X,"gender":"homme ou femme","activity":"sedentaire ou leger ou modere ou actif ou tres_actif"}}
 - Macros    → {{"type":"macros","weight_kg":X,"tdee_kcal":X,"goal":"prise ou seche ou maintien"}}
 - Recherche → {{"type":"web_search"}}
-- Manquant  → {{"type":"missing","need":"infos manquantes"}}
 - Inconnu   → {{"type":"unknown"}}
 
-Règles critiques :
+RÈGLE IMPORTANTE : Si le type est identifié (1rm/tdee/macros) mais que des données manquent,
+retourne QUAND MÊME le type avec null pour les champs manquants.
+Ne retourne JAMAIS {{"type":"missing"}} si tu sais quel type de calcul est demandé.
+Exemples :
+- "calcule mon 1rm" sans chiffres → {{"type":"1rm","weight_kg":null,"reps":null}}
+- "calcule mon TDEE" sans données → {{"type":"tdee","weight_kg":null,"height_cm":null,"age":null}}
+- "je veux mes macros" sans données → {{"type":"macros","weight_kg":null,"tdee_kcal":null,"goal":null}}
+
+Autres règles :
 - 1m93 ou 1.93m → height_cm: 193
 - Le champ "activity" (TDEE) est TOUJOURS l'un de : sedentaire, leger, modere, actif, tres_actif
 - "maintien", "prise", "sèche" sont des OBJECTIFS → champ "goal" pour les macros UNIQUEMENT, jamais pour activity
@@ -86,7 +93,7 @@ class ToolsAgent:
 
         if t in ("1rm", "tdee", "macros", "missing"):
             print(f"\n[Outil] → calculator appelé")
-            result = self._calculate_from_params(params)
+            result = self._calculate_from_params(params, question)
             print(f"         Résultat brut : {result[:200]}")
             return result
 
@@ -95,7 +102,7 @@ class ToolsAgent:
             q = question.lower()
             if any(kw in q for kw in CALC_FALLBACK_KEYWORDS):
                 print(f"\n[Outil] → calculator appelé (fallback)")
-                return self._regex_extract(question) or "Je n'ai pas pu extraire les paramètres."
+                return self._regex_extract(question) or self._ask_for_params(question)
 
         print(f"\n[Outil] → web_search appelé")
         raw_result = self._web_search(question)
@@ -122,35 +129,83 @@ class ToolsAgent:
             print(f"[Tools] ⚠ LLM combiné échoué ({e}), fallback mots-clés")
         return None
 
-    def _calculate_from_params(self, params: dict) -> str:
+    def _calculate_from_params(self, params: dict, original_question: str = "") -> str:
         t = params.get("type")
-        try:
-            if t == "1rm":
-                if not params.get("weight_kg") or not params.get("reps"):
-                    return "Pour calculer votre 1RM, précisez le poids soulevé (kg) et le nombre de répétitions. Ex : '80 kg × 8 reps'"
+
+        if t == "1rm":
+            if not params.get("weight_kg") or not params.get("reps"):
+                return self._ask_for_params("1rm")
+            try:
                 return format_1rm(float(params["weight_kg"]), int(params["reps"]))
-            if t == "tdee":
-                _friendly = {"weight_kg": "votre poids (kg)", "height_cm": "votre taille (cm)", "age": "votre âge (ans)"}
-                missing = [_friendly[f] for f in ("weight_kg", "height_cm", "age") if f not in params]
-                if missing:
-                    return f"Pour calculer votre TDEE, j'ai besoin de : {', '.join(missing)}. Ex : '80 kg, 180 cm, 25 ans, homme, actif'"
+            except (ValueError, TypeError):
+                return self._ask_for_params("1rm")
+
+        if t == "tdee":
+            # not params.get(f) catches missing keys AND null/falsy values
+            if any(not params.get(f) for f in ("weight_kg", "height_cm", "age")):
+                return self._ask_for_params("tdee")
+            try:
                 return format_tdee(
                     float(params["weight_kg"]), float(params["height_cm"]),
                     int(params["age"]), params.get("gender", "homme"),
                     params.get("activity", "modere"),
                 )
-            if t == "macros":
-                if "tdee_kcal" not in params:
-                    return "Pour calculer vos macros, précisez votre TDEE (kcal), votre poids et votre objectif (prise / séche / maintien)."
+            except (ValueError, TypeError):
+                return self._ask_for_params("tdee")
+
+        if t == "macros":
+            if not params.get("tdee_kcal"):
+                return self._ask_for_params("macros")
+            try:
                 return format_macros(
                     float(params["tdee_kcal"]), params.get("goal", "maintien"),
                     float(params.get("weight_kg", 80)),
                 )
-            if t == "missing":
-                return f"Il me manque quelques informations : {params.get('need', 'précise ta demande')}."
-        except (KeyError, ValueError, TypeError):
-            pass
-        return "Je n'ai pas pu effectuer le calcul. Précise le poids (kg) et le nombre de répétitions."
+            except (ValueError, TypeError):
+                return self._ask_for_params("macros")
+
+        if t == "missing":
+            # Utilise la question originale pour deviner le type manquant
+            ctx = (params.get("need", "") + " " + original_question).lower()
+            if any(w in ctx for w in ("1rm", "one rep", "répétitions", "reps")):
+                return self._ask_for_params("1rm")
+            if any(w in ctx for w in ("tdee", "dépense", "taille", "height", "kcal")):
+                return self._ask_for_params("tdee")
+            if any(w in ctx for w in ("macros", "macro", "protéines")):
+                return self._ask_for_params("macros")
+            return f"Il me manque quelques informations : {params.get('need', 'précise ta demande')}."
+
+        return self._ask_for_params(original_question)
+
+    def _ask_for_params(self, question_or_type: str) -> str:
+        """Retourne un message pédagogique selon le type de calcul détecté."""
+        q = question_or_type.lower()
+        if "1rm" in q or "one rep" in q:
+            return (
+                "Pour calculer votre 1RM (charge maximale sur 1 répétition), j'ai besoin de :\n"
+                "• Poids soulevé (kg)\n"
+                "• Nombre de répétitions effectuées\n\n"
+                "Ex : '100 kg × 5 reps' ou 'j'ai fait 8 répétitions avec 80 kg'"
+            )
+        if "tdee" in q or "dépense" in q or "calories" in q or "kcal" in q:
+            return (
+                "Pour calculer votre TDEE (dépense énergétique journalière), j'ai besoin de :\n"
+                "• Poids (kg)\n"
+                "• Taille (cm)\n"
+                "• Âge (ans)\n"
+                "• Sexe (homme / femme)\n"
+                "• Niveau d'activité : sédentaire | léger | modéré | actif | très actif\n\n"
+                "Ex : '80 kg, 180 cm, 25 ans, homme, actif'"
+            )
+        if "macros" in q or "macro" in q:
+            return (
+                "Pour calculer vos macros, j'ai besoin de :\n"
+                "• Votre TDEE (kcal/jour) — calculez-le d'abord si besoin\n"
+                "• Votre poids (kg)\n"
+                "• Objectif : prise de masse | sèche | maintien\n\n"
+                "Ex : 'macros pour 2800 kcal, 80 kg, prise de masse'"
+            )
+        return "Précise ta demande avec les données nécessaires (poids, répétitions, taille, âge...)."
 
     def _web_search(self, query: str) -> str:
         try:

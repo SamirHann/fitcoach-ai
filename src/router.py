@@ -23,8 +23,11 @@ ROUTING_PROMPT = """Tu es un routeur pour FitCoach AI, assistant musculation.
 Classe le message dans une des 3 catégories :
 
 - chat  : salutation, remerciement, question sur l'assistant, conversation générale
+          → "c'est quoi un TDEE ?", "explique-moi le 1RM", "qu'est-ce que les macros ?" = chat
+          → "comment fonctionne le 1RM ?", "c'est quoi la créatine ?" = chat
 - tools : calcul fitness (1RM, TDEE, calories, macros) OU recherche web/actualités
           → Calculs : contient des chiffres + kg/reps/cm/ans ou mots "1rm","tdee","macros","calories"
+          → UNIQUEMENT si l'intention est de CALCULER, pas de comprendre ou définir
           → Web : actualités, études récentes, "2024", "2025", nouvelles, dernières recherches
           → Corrections de calcul : "en fait 5x/semaine", "plutôt actif", "non 3 fois par semaine"
 - rag   : question générale sur l'entraînement, exercices, programmes, nutrition sportive
@@ -49,6 +52,15 @@ _1RM_RE = re.compile(
     r'|\d+[.,]?\d*\s*kilo[s]?\b.{0,15}\d+\s*fois'
     r'|\d+\s*fois\b.{0,15}\d+[.,]?\d*\s*kilo[s]?',
     re.IGNORECASE,
+)
+
+# Préfixes de définition : si présents, on ne force PAS le route Tools
+# (ex: "c'est quoi un TDEE ?" → Chat ou RAG, pas calcul)
+_DEFINITION_PREFIXES = (
+    "c'est quoi", "c est quoi", "qu'est-ce", "qu est-ce",
+    "explique", "expliques", "kesako", "dis moi ce que",
+    "définition", "definition", "c'est quoi le", "c'est quoi la",
+    "qu'est ce que", "qu est ce que",
 )
 
 # Keywords forts : prennent priorité sur le LLM (sans ambiguïté)
@@ -82,10 +94,14 @@ class RouterState(TypedDict):
 
 def _strong_route(question: str) -> Literal["rag", "tools", "chat"] | None:
     """Route déterministe sur keywords forts — bypass le LLM.
+    - Questions de définition ("c'est quoi un TDEE ?") → pas de route forcée vers Tools.
     - Tools toujours en premier (regex 1RM + keywords).
     - Chat seulement sur messages courts (≤ 5 mots) : évite que 'parfait,' ou 'super,'
       en début d'une vraie question soient interceptés comme chat."""
     q = question.lower()
+    # Ne pas forcer Tools si c'est une question de définition/explication
+    if any(p in q for p in _DEFINITION_PREFIXES):
+        return None
     if any(kw in q for kw in _STRONG_TOOLS_KW) or bool(_1RM_RE.search(q)):
         return "tools"
     if any(kw in q for kw in _CHAT_KW) and len(q.split()) <= 5:
