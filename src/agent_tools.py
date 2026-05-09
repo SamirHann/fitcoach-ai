@@ -130,7 +130,8 @@ class ToolsAgent:
                     return "Pour calculer votre 1RM, précisez le poids soulevé (kg) et le nombre de répétitions. Ex : '80 kg × 8 reps'"
                 return format_1rm(float(params["weight_kg"]), int(params["reps"]))
             if t == "tdee":
-                missing = [f for f in ("weight_kg", "height_cm", "age") if f not in params]
+                _friendly = {"weight_kg": "votre poids (kg)", "height_cm": "votre taille (cm)", "age": "votre âge (ans)"}
+                missing = [_friendly[f] for f in ("weight_kg", "height_cm", "age") if f not in params]
                 if missing:
                     return f"Pour calculer votre TDEE, j'ai besoin de : {', '.join(missing)}. Ex : '80 kg, 180 cm, 25 ans, homme, actif'"
                 return format_tdee(

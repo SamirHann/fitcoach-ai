@@ -32,6 +32,9 @@ Classe le message dans une des 3 catégories :
           → "combien de protéines par jour ?" sans chiffres personnels = rag
           → "quel programme débutant ?" = rag
           → "comment optimiser mon sommeil pour la récupération ?" = rag
+          → "je veux grossir", "je veux prendre de la masse", "aide moi à perdre du gras" = rag
+          → "le meilleur exercice ?", "quel exercice pour les pecs ?" = rag
+          → intentions fitness sans calcul = rag
 
 {history}
 
@@ -39,10 +42,12 @@ Nouveau message : {question}
 
 Réponds UNIQUEMENT par "ROUTE: chat", "ROUTE: tools" ou "ROUTE: rag". Rien d'autre."""
 
-# Regex pour détecter les patterns 1RM naturels : "8 x 80kg", "80kg × 8", etc.
+# Regex pour détecter les patterns 1RM naturels : "8 x 80kg", "80kg × 8", "100 kilos 6 fois", etc.
 _1RM_RE = re.compile(
     r'\d+\s*(?:x|×|\*)\s*\d+\s*kg'
-    r'|\d+\s*kg\s*(?:x|×|\*)\s*\d+',
+    r'|\d+\s*kg\s*(?:x|×|\*)\s*\d+'
+    r'|\d+[.,]?\d*\s*kilo[s]?\b.{0,15}\d+\s*fois'
+    r'|\d+\s*fois\b.{0,15}\d+[.,]?\d*\s*kilo[s]?',
     re.IGNORECASE,
 )
 
