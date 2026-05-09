@@ -126,23 +126,30 @@ class ToolsAgent:
         t = params.get("type")
         try:
             if t == "1rm":
+                if not params.get("weight_kg") or not params.get("reps"):
+                    return "Pour calculer votre 1RM, précisez le poids soulevé (kg) et le nombre de répétitions. Ex : '80 kg × 8 reps'"
                 return format_1rm(float(params["weight_kg"]), int(params["reps"]))
             if t == "tdee":
+                missing = [f for f in ("weight_kg", "height_cm", "age") if f not in params]
+                if missing:
+                    return f"Pour calculer votre TDEE, j'ai besoin de : {', '.join(missing)}. Ex : '80 kg, 180 cm, 25 ans, homme, actif'"
                 return format_tdee(
                     float(params["weight_kg"]), float(params["height_cm"]),
                     int(params["age"]), params.get("gender", "homme"),
                     params.get("activity", "modere"),
                 )
             if t == "macros":
+                if "tdee_kcal" not in params:
+                    return "Pour calculer vos macros, précisez votre TDEE (kcal), votre poids et votre objectif (prise / séche / maintien)."
                 return format_macros(
                     float(params["tdee_kcal"]), params.get("goal", "maintien"),
-                    float(params["weight_kg"]),
+                    float(params.get("weight_kg", 80)),
                 )
             if t == "missing":
                 return f"Il me manque quelques informations : {params.get('need', 'précise ta demande')}."
-        except (KeyError, ValueError, TypeError) as e:
+        except (KeyError, ValueError, TypeError):
             pass
-        return "Je n'ai pas pu effectuer le calcul avec les paramètres reçus."
+        return "Je n'ai pas pu effectuer le calcul. Précise le poids (kg) et le nombre de répétitions."
 
     def _web_search(self, query: str) -> str:
         try:

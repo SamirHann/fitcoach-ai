@@ -2,6 +2,7 @@
 """Orchestrateur LangGraph : route les questions vers RAG, Tools ou Chat via LLM."""
 
 import os
+import re
 from typing import TypedDict, Literal
 
 from langgraph.graph import StateGraph, END
@@ -36,6 +37,13 @@ Nouveau message : {question}
 
 Réponds UNIQUEMENT par "ROUTE: chat", "ROUTE: tools" ou "ROUTE: rag". Rien d'autre."""
 
+# Regex pour détecter les patterns 1RM naturels : "8 x 80kg", "80kg × 8", etc.
+_1RM_RE = re.compile(
+    r'\d+\s*(?:x|×|\*)\s*\d+\s*kg'
+    r'|\d+\s*kg\s*(?:x|×|\*)\s*\d+',
+    re.IGNORECASE,
+)
+
 # Keywords forts : prennent priorité sur le LLM (sans ambiguïté)
 _STRONG_TOOLS_KW = (
     "calcul", "calculer", "calcule", "tdee", "1rm", "one rep max",
@@ -50,7 +58,7 @@ _WEAK_TOOLS_KW = (
 )
 _CHAT_KW = (
     "bonjour", "salut", "bonsoir", "hello", "coucou", "hey",
-    "merci", "super", "parfait", "ok", "okay", "d'accord",
+    "merci", "super", "parfait", "d'accord",
     "au revoir", "bye", "à bientôt", "bonne journée",
     "comment tu", "comment vas", "ça va", "comment t'appelles",
     "qui es-tu", "qu'est-ce que tu es", "présente-toi",
@@ -66,12 +74,13 @@ class RouterState(TypedDict):
 
 
 def _strong_route(question: str) -> Literal["rag", "tools", "chat"] | None:
-    """Route déterministe sur keywords forts — bypass le LLM."""
+    """Route déterministe sur keywords forts — bypass le LLM.
+    Tools vérifié en premier : évite que 'ok' dans _CHAT_KW court-circuite '8 x 80kg'."""
     q = question.lower()
+    if any(kw in q for kw in _STRONG_TOOLS_KW) or bool(_1RM_RE.search(q)):
+        return "tools"
     if any(kw in q for kw in _CHAT_KW):
         return "chat"
-    if any(kw in q for kw in _STRONG_TOOLS_KW):
-        return "tools"
     return None
 
 
